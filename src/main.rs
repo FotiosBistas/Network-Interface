@@ -1,5 +1,3 @@
-extern crate tun_tap; 
-
 use std::process::Command; 
 use std::io::{self, ErrorKind};
 
@@ -24,7 +22,8 @@ fn cmd(cmd: &str, args: &[&str]) -> io::Result<()> {
 }
 
 //ipv4 and ipv6
-const SUPPORTED_PROTOCOLS: &[&str] = &["0x0800", "0x86DD"];
+const SUPPORTED_PROTOCOLS: &[&str] = &["0800", "86DD"];
+
 
 fn main() -> Result<(), io::Error >{
     //packet types received can be found here: https://docs.kernel.org/networking/tuntap.html
@@ -59,11 +58,34 @@ fn main() -> Result<(), io::Error >{
         eprintln!("Proto: {:x?}", proto);
         eprintln!("Len of bytes: {:?}", nbytes);
         eprintln!("Bytes/packet received: {:x?}", &buffer[4..nbytes]);
-       
-        if !SUPPORTED_PROTOCOLS.contains(&proto.to_string().as_str()){
+
+        let proto_bytes = proto.to_be_bytes();
+        let proto_hex_encoded = hex::encode(proto_bytes);
+        let proto_slice = proto_hex_encoded.as_str();
+        
+        //println!("{:?}", proto_slice);
+
+        if !SUPPORTED_PROTOCOLS.contains(&proto_slice){
             eprintln!("Continuing caught unsupported protocol");
             continue; 
         }
+        
+        match proto_slice {
+            "0800" => {
+                match etherparse::Ipv4Header::from_slice(&buffer[4..nbytes]){
+                    Ok(header) => {
+                        eprintln!("Flags: {:x?}", flags);
+                        eprintln!("Proto: {:x?}", proto);
+                        eprintln!("Len of bytes: {:?}", nbytes);
+                        eprintln!("Packet received: {:?}", header);
+                    }
+                    Err(e) => {eprintln!("Error: {:?} while parsing packet ignoring", e)}
+                }
+            }
+            "86DD" => todo!(),
+            _ => todo!()
+        }
+        
     }
 }
 
