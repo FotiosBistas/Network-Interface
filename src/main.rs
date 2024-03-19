@@ -1,6 +1,8 @@
 use std::process::Command; 
 use std::io::{self, ErrorKind};
 
+mod tcp;
+
 /// Run a shell command. Return an error if it fails in any way.
 fn cmd(cmd: &str, args: &[&str]) -> io::Result<()> {
     let mut child = Command::new(cmd)
