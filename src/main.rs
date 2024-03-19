@@ -77,44 +77,67 @@ fn main() -> Result<(), io::Error >{
             eprintln!("Unsupported ETH protocol {:x?}. Continuing...", eth_proto);
             continue; 
         }
-        
+
         match proto_slice {
             "0800" => {
-                //this returns a tuple containing the header object 
-                //and a &u8[]
-                match etherparse::Ipv4Header::from_slice(&buffer[4..eth_nbytes]){
-                    Ok(packet) => {
-                        let destination_address = packet.0.destination;
-                        let source_address = packet.0.source;
-                        let protocol = packet.0.protocol;
-                        let total_len = packet.0.total_len; 
-                        
-                        eprintln!("Source: {:?} -> Destination: {:?} with protocol: {:?} and payload length: {:?}", source_address, destination_address, protocol, total_len);
+                let packet = match etherparse::Ipv4Header::from_slice(&buffer[4..eth_nbytes]) {
+                    Ok(packet) => packet,
+                    Err(e) => {
+                        eprintln!("Error: {:?} while parsing ETHERNET packet. Ignoring...", e);
+                        continue;
+                    }
+                };
 
-                        let protocol_keyword = protocol.keyword_str().unwrap();
-                        if !IP_SUPPORTED_PROTOCOLS.contains(&protocol_keyword){
-                            eprintln!("Unsupported IP protocol {}. Continuing...", protocol_keyword);
-                            continue;
-                        }
-                        
-                        let payload = packet.1;
-                        //TODO implement for UDP
-                        match etherparse::TcpHeader::from_slice(payload) {
-                            Ok(packet) => {
-                                let source_port = packet.0.source_port; 
-                                let destination_port = packet.0.destination_port;
-                                eprintln!("Source port: {:?} -> Destination Port: {:?}. Received TCP packet", source_port, destination_port)
-                            },
-                            Err(e) => eprintln!("Error: {:?} while parsing IP packet. Ignoring...", e)
+                let destination_address = packet.0.destination;
+                let source_address = packet.0.source;
+                let protocol = packet.0.protocol;
+                let total_len = packet.0.total_len;
+
+                eprintln!("Source: {:?} -> Destination: {:?} with protocol: {:?} and payload length: {:?}", source_address, destination_address, protocol, total_len);
+
+                let protocol_keyword = match protocol.keyword_str() {
+                    Some(keyword) => keyword,
+                    None => {
+                        eprintln!("Failed to get protocol keyword string. Continuing...");
+                        continue;
+                    }
+                };
+
+                if !IP_SUPPORTED_PROTOCOLS.contains(&protocol_keyword) {
+                    eprintln!("Unsupported IP protocol {}. Continuing...", protocol_keyword);
+                    continue;
+                }
+
+                let payload = packet.1;
+
+                match protocol_keyword {
+                    "TCP" => {
+                        if let Ok(tcp_packet) = etherparse::TcpHeader::from_slice(payload) {
+                            let source_port = tcp_packet.0.source_port;
+                            let destination_port = tcp_packet.0.destination_port;
+                            eprintln!("Source port: {:?} -> Destination Port: {:?}. Received TCP packet", source_port, destination_port);
+                        } else {
+                            eprintln!("Error while parsing TCP packet. Ignoring...");
                         }
                     }
-                    Err(e) => eprintln!("Error: {:?} while parsing ETHERNET packet. Ignoring...", e)
+                    "UDP" => {
+                        // Handle UDP case
+                        todo!()
+                    }
+                    _ => {
+                        eprintln!("Unsupported protocol. Continuing...");
+                    }
                 }
             }
-            "86DD" => todo!(),
-            _ => todo!()
-        }
+            "86DD" => {
+                // Handle IPv6 case
+                todo!()
+            }
+            _ => {
+                // Handle other cases
+                todo!()
+            }
+        }   
     }
 }
-
 

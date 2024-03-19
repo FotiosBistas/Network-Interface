@@ -27,7 +27,7 @@ pub struct IdentifyingTCB{
 
 impl IdentifyingTCB {
 
-
+    // thank you https://youtu.be/5rb0vvJ7NCY for the insiration to check this out
     pub fn pack_tcb(&self) -> u128{
         // the TCB struct is 96 bits in size but there is no type for 96bits
         // next one is u128

@@ -28,7 +28,7 @@ fn tcb_hashmap_operations(bencher: &mut Criterion) {
         })
     });
 
-    group.bench_function("Insert as u32", |b| {
+    group.bench_function("Insert as u128", |b| {
         let mut hashmap = HashMap::new();
         b.iter(|| {
             for port in 0..1000 {
@@ -44,9 +44,9 @@ fn tcb_hashmap_operations(bencher: &mut Criterion) {
                     window_size: 1024,
                     state: TcpState::Established,
                 };
-                //pack the tcb identifier into a 6*32=192
-                pack_192 = unsafe {}
-                hashmap.insert(tcb.identifier, tcb);
+                //pack the tcb identifier into a u128
+                let packed_tcb = tcb.identifier.pack_tcb();
+                hashmap.insert(packed_tcb, tcb);
             }
         })
     });
@@ -80,6 +80,36 @@ fn tcb_hashmap_operations(bencher: &mut Criterion) {
         })
     });
 
+    group.bench_function("Retrieve with u128", |b| {
+        let mut hashmap = HashMap::new();
+        for port in 0..1000 {
+            let tcb = TCB {
+                identifier: IdentifyingTCB {
+                    local_address: [192, 168, 1, 1],
+                    remote_address: [10, 0, 0, 1],
+                    local_port: port,
+                    remote_port: port + 1,
+                },
+                sequence_number: 0,
+                acknowledgment_number: 0,
+                window_size: 1024,
+                state: TcpState::Established,
+            };
+            let packed_tcb = tcb.identifier.pack_tcb();  // Declare it inside the loop
+            hashmap.insert(packed_tcb, tcb);
+        }
+        b.iter(|| {
+            for port in 0..1000 {
+                let lookup_key = IdentifyingTCB {
+                    local_address: [192, 168, 1, 1],
+                    remote_address: [10, 0, 0, 1],
+                    local_port: port,
+                    remote_port: port + 1,
+                }.pack_tcb();
+                black_box(hashmap.get(&lookup_key));
+            }
+        })
+    });
     group.finish();
 }
 
