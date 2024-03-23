@@ -1,7 +1,9 @@
 use std::process::Command; 
 use std::io::{self, ErrorKind};
+use std::collections::HashMap;
 
 mod tcp;
+
 
 /// Run a shell command. Return an error if it fails in any way.
 fn cmd(cmd: &str, args: &[&str]) -> io::Result<()> {
@@ -18,7 +20,7 @@ fn cmd(cmd: &str, args: &[&str]) -> io::Result<()> {
             ErrorKind::Other,
             format!("Command {} failed with exit status: {}", cmd, ecode),
         ));
-    }
+    };
 
     Ok(())
 }
@@ -34,6 +36,7 @@ const IP_SUPPORTED_PROTOCOLS: &[&str] = &["UDP", "TCP"];
 
 
 fn main() -> Result<(), io::Error >{
+    let mut connections: HashMap<u128, tcp::TCB> = Default::default();
     //packet types received can be found here: https://docs.kernel.org/networking/tuntap.html
     let iface = tun_tap::Iface::new("Itun", tun_tap::Mode::Tun).expect("Failed to create interface");
     eprintln!("IFACE: {:?}", iface);
@@ -80,18 +83,18 @@ fn main() -> Result<(), io::Error >{
 
         match proto_slice {
             "0800" => {
-                let packet = match etherparse::Ipv4Header::from_slice(&buffer[4..eth_nbytes]) {
-                    Ok(packet) => packet,
+                let ipv4_packet = match etherparse::Ipv4Header::from_slice(&buffer[4..eth_nbytes]) {
+                    Ok(ipv4_packet) => ipv4_packet,
                     Err(e) => {
                         eprintln!("Error: {:?} while parsing ETHERNET packet. Ignoring...", e);
                         continue;
                     }
                 };
 
-                let destination_address = packet.0.destination;
-                let source_address = packet.0.source;
-                let protocol = packet.0.protocol;
-                let total_len = packet.0.total_len;
+                let destination_address = ipv4_packet.0.destination;
+                let source_address = ipv4_packet.0.source;
+                let protocol = ipv4_packet.0.protocol;
+                let total_len = ipv4_packet.0.total_len;
 
                 eprintln!("Source: {:?} -> Destination: {:?} with protocol: {:?} and payload length: {:?}", source_address, destination_address, protocol, total_len);
 
@@ -108,17 +111,36 @@ fn main() -> Result<(), io::Error >{
                     continue;
                 }
 
-                let payload = packet.1;
+                let ipv4_payload = ipv4_packet.1;
 
                 match protocol_keyword {
                     "TCP" => {
-                        if let Ok(tcp_packet) = etherparse::TcpHeader::from_slice(payload) {
-                            let source_port = tcp_packet.0.source_port;
-                            let destination_port = tcp_packet.0.destination_port;
-                            eprintln!("Source port: {:?} -> Destination Port: {:?}. Received TCP packet", source_port, destination_port);
-                        } else {
-                            eprintln!("Error while parsing TCP packet. Ignoring...");
-                        }
+
+                        let tcp_packet = match etherparse::TcpHeader::from_slice(ipv4_payload) {
+                            Ok(tcp_packet) => { 
+                                eprintln!("Successfully parsed TCP packet.");
+                                tcp_packet 
+                            }
+                            Err(e) => {
+                                eprintln!("Error while parsing TCP packet. Ignoring...");
+                                continue; 
+                            }
+
+                        };
+
+                        let source_port = tcp_packet.0.source_port;
+                        let destination_port = tcp_packet.0.destination_port;
+                        eprintln!("Source port: {:?} -> Destination Port: {:?}. Received TCP packet", source_port, destination_port);
+
+                        let tcb_identifier = tcp::IdentifyingTCB::new(
+                            destination_address,
+                            source_address,
+                            destination_port,
+                            source_port,
+                        );
+
+                        connections.entry(tcb_identifier.pack_tcb()).or_default().on_packet(ipv4_packet, tcp_packet);
+
                     }
                     "UDP" => {
                         // Handle UDP case
