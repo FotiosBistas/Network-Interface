@@ -1,3 +1,4 @@
+
 /// transmission control block for TCP
 #[derive(Clone, Copy, Debug)]
 pub struct TCB {
@@ -15,6 +16,43 @@ pub struct TCB {
     pub state: TcpState,
 }
 
+impl Default for TCB {
+
+    fn default() -> TCB{
+        TCB::new()
+    }
+}
+
+impl TCB{
+
+    // Default constructor with dummy values
+    pub fn new() -> Self {
+        Self {
+            identifier: IdentifyingTCB::default(),
+            sequence_number: 0,
+            acknowledgment_number: 0,
+            window_size: 0,
+            state: TcpState::default(),
+        }
+    }
+
+    // Constructor with specified values
+    pub fn with_values(identifier: IdentifyingTCB, sequence_number: u32, acknowledgment_number: u32, window_size: u16, state: TcpState) -> Self {
+        Self {
+            identifier,
+            sequence_number,
+            acknowledgment_number,
+            window_size,
+            state,
+        }
+    }
+
+    ///The packets contain the respective header and payload (u8).
+    pub fn on_packet(&mut self, ipv4_packet: (etherparse::Ipv4Header, &[u8]), tcp_packet: (etherparse::TcpHeader, &[u8])){
+
+    }
+}
+
 /// fields required for identifying a TCB
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct IdentifyingTCB{
@@ -25,7 +63,23 @@ pub struct IdentifyingTCB{
     pub remote_port: u16,
 }
 
+impl Default for IdentifyingTCB {
+    fn default() -> IdentifyingTCB {
+        IdentifyingTCB {
+            local_address: [0, 0, 0, 0],  // Dummy IP
+            remote_address: [0, 0, 0, 0], // Dummy IP
+            local_port: 0,                // Dummy port
+            remote_port: 0,               // Dummy port
+        }
+    }
+}
+
 impl IdentifyingTCB {
+
+
+    pub fn new(local_address: [u8;4], remote_address:[u8;4], local_port:u16, remote_port:u16) -> IdentifyingTCB {
+        IdentifyingTCB{local_address: local_address, remote_address: remote_address, local_port: local_port, remote_port: remote_port}
+    }
 
     // thank you https://youtu.be/5rb0vvJ7NCY for the insiration to check this out
     pub fn pack_tcb(&self) -> u128{
@@ -72,6 +126,12 @@ pub enum TcpState {
     Closing,
     LastAck,
     TimeWait,
+}
+
+impl Default for TcpState {
+    fn default() -> TcpState {
+        TcpState::Established// Default state
+    }
 }
 
 
