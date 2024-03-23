@@ -47,9 +47,46 @@ impl TCB{
         }
     }
 
+    fn wrap_in_ipv4(self, new_tcp_header: etherparse::TcpHeader, ipv4_header: etherparse::Ipv4Header){
+
+        etherparse::Ipv4Header::new(
+            ipv4_header.destination, 
+            ipv4_header.source,
+            64, 
+            new_tcp_header.header_len_u16(),
+            etherparse::IpTrafficClass::Tcp,
+        )
+    }
+
     ///The packets contain the respective header and payload (u8).
     pub fn on_packet(&mut self, ipv4_packet: (etherparse::Ipv4Header, &[u8]), tcp_packet: (etherparse::TcpHeader, &[u8])){
+        // follow the state diagram in RFC 793 (https://datatracker.ietf.org/doc/html/rfc793#section-3.3)
+        match *self.state {
+            TcpState::Closed => return, 
+            TcpState::Listen => {
+                if !tcp_packet.0.syn {
+                    //got unexpected syn 
+                    //*self.state = TcpState::Closed; 
+                    return;
+                }
 
+                // create a new tcp header 
+                let mut syn_ack = etherparse::TcpHeader::new(
+                    tcp_packet.0.destination_port, 
+                    tcp_packet.0.source_port, 
+                    sequence_number: 0, 
+                    acknowledgment_number: tcp_packet.0.sequence_number + 1,
+                ); 
+
+
+                syn_ack.syn = true; 
+                syn_ack.ack = true;
+
+                //syn_ack.to_bytes()
+
+                new_ipv4_header = wrap_in_ipv4(syn_ack, ipv4_packet.0)
+            }
+        }
     }
 }
 
@@ -130,7 +167,8 @@ pub enum TcpState {
 
 impl Default for TcpState {
     fn default() -> TcpState {
-        TcpState::Established// Default state
+        //TcpState::Closed// Default state
+        TcpState::Listen
     }
 }
 
